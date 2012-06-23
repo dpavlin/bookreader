@@ -9,6 +9,8 @@ use DirHandle;
 use URI::Escape;
 use Plack::Request;
 use Data::Dump qw(dump);
+use File::Path qw(make_path);
+use Graphics::Magick;
 
 # Stolen from rack/directory.rb
 my $dir_file = "<tr><td class='name'><a href='%s'>%s</a></td><td class='size'>%s</td><td class='type'>%s</td><td class='mtime'>%s</td></tr>";
@@ -59,13 +61,35 @@ sub return_dir_redirect {
 }
 
 sub serve_path {
-    my($self, $env, $dir, $fullpath) = @_;
+    my($self, $env, $path, $fullpath) = @_;
 
-    if (-f $dir) {
+    if (-f $path) {
 
-		if (
+		my $req = Plack::Request->new($env);
+		if ( my $reduce = $req->param('reduce') ) {
+			$reduce = int($reduce); # BookReader javascript somethimes returns float
+			warn "# -scale 1/$reduce $path\n";
 
-        return $self->SUPER::serve_path($env, $dir, $fullpath);
+			my $cache_path = "cache/$path.reduce.$reduce.jpg";
+			if ( $reduce <= 1 ) {
+				$cache_path = $path;
+			} elsif ( ! -e $cache_path ) {
+				my $image = Graphics::Magick->new( magick => 'jpg' );
+				$image->Read($path);
+				my ( $w, $h ) = $image->Get('width','height');
+				$image->Resize(
+					width  => $w / $reduce,
+					height => $h / $reduce
+				);
+				$image->Write( filename => $cache_path );
+				warn "# created $cache_path ", -s $cache_path, " bytes\n";
+			}
+
+        	return $self->SUPER::serve_path($env, $cache_path, $fullpath);
+
+		}
+
+        return $self->SUPER::serve_path($env, $path, $fullpath);
     }
 
     my $dir_url = $env->{SCRIPT_NAME} . $env->{PATH_INFO};
