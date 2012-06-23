@@ -9,8 +9,20 @@ use DirHandle;
 use URI::Escape;
 use Plack::Request;
 use Data::Dump qw(dump);
-use File::Path qw(make_path);
+use File::Path;
 use Graphics::Magick;
+use File::Slurp;
+use Image::Size;
+use JSON;
+use Time::Piece ();
+use Time::Seconds 'ONE_YEAR';
+
+sub make_basedir {
+	my $path = shift;
+	return if -e $path;
+	$path =~ s{/[^/]+$}{} || die "no dir/file in $path";
+	File::Path::make_path $path;
+}
 
 # Stolen from rack/directory.rb
 my $dir_file = "<tr><td class='name'><a href='%s'>%s</a></td><td class='size'>%s</td><td class='type'>%s</td><td class='mtime'>%s</td></tr>";
@@ -42,6 +54,158 @@ table { width:100%%; }
 </body></html>
 PAGE
 
+my $reader_page = <<'PAGE';
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+    <title>%s</title>
+    
+    <link rel="stylesheet" type="text/css" href="/BookReader/BookReader.css"/>
+    <script type="text/javascript" src="http://www.archive.org/includes/jquery-1.4.2.min.js"></script>
+    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery-ui-1.8.5.custom.min.js"></script>
+
+    <script type="text/javascript" src="http://www.archive.org/bookreader/dragscrollable.js"></script>
+    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery.colorbox-min.js"></script>
+    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery.ui.ipad.js"></script>
+    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery.bt.min.js"></script>
+
+    <script type="text/javascript" src="/BookReader/BookReader.js"></script>
+
+<style type="text/css">
+
+/* Hide print and embed functionality */
+#BRtoolbar .embed, .print {
+    display: none;
+}
+
+</style>
+
+<script type="text/javascript">
+$(document).ready( function() {
+
+// 
+// This file shows the minimum you need to provide to BookReader to display a book
+//
+// Copyright(c)2008-2009 Internet Archive. Software license AGPL version 3.
+
+// Create the BookReader object
+var br = new BookReader();
+
+var pages = %s;
+
+// Return the width of a given page.  Here we assume all images are 800 pixels wide
+br.getPageWidth = function(index) {
+	if ( ! pages[index] ) return;
+    return parseInt( pages[index][1] );
+}
+
+// Return the height of a given page.  Here we assume all images are 1200 pixels high
+br.getPageHeight = function(index) {
+	if ( ! pages[index] ) return;
+    return parseInt( pages[index][2] );
+}
+
+// We load the images from archive.org -- you can modify this function to retrieve images
+// using a different URL structure
+br.getPageURI = function(index, reduce, rotate) {
+    // reduce and rotate are ignored in this simple implementation, but we
+    // could e.g. look at reduce and load images from a different directory
+    // or pass the information to an image server
+	var url = pages[index][0] + '?reduce='+reduce;
+	console.debug('getPageURI', index, reduce, rotate, url);
+    return url;
+}
+
+// Return which side, left or right, that a given page should be displayed on
+br.getPageSide = function(index) {
+    if (0 == (index & 0x1)) {
+        return 'R';
+    } else {
+        return 'L';
+    }
+}
+
+// This function returns the left and right indices for the user-visible
+// spread that contains the given index.  The return values may be
+// null if there is no facing page or the index is invalid.
+br.getSpreadIndices = function(pindex) {   
+    var spreadIndices = [null, null]; 
+    if ('rl' == this.pageProgression) {
+        // Right to Left
+        if (this.getPageSide(pindex) == 'R') {
+            spreadIndices[1] = pindex;
+            spreadIndices[0] = pindex + 1;
+        } else {
+            // Given index was LHS
+            spreadIndices[0] = pindex;
+            spreadIndices[1] = pindex - 1;
+        }
+    } else {
+        // Left to right
+        if (this.getPageSide(pindex) == 'L') {
+            spreadIndices[0] = pindex;
+            spreadIndices[1] = pindex + 1;
+        } else {
+            // Given index was RHS
+            spreadIndices[1] = pindex;
+            spreadIndices[0] = pindex - 1;
+        }
+    }
+    
+    return spreadIndices;
+}
+
+// For a given "accessible page index" return the page number in the book.
+//
+// For example, index 5 might correspond to "Page 1" if there is front matter such
+// as a title page and table of contents.
+br.getPageNum = function(index) {
+    return index+1;
+}
+
+// Total number of leafs
+br.numLeafs = pages.length;
+
+// Book title and the URL used for the book title link
+br.bookTitle= 'Open Library BookReader Presentation';
+br.bookUrl  = 'http://openlibrary.org';
+
+// Override the path used to find UI images
+br.imagesBaseURL = '/BookReader/images/';
+
+br.getEmbedCode = function(frameWidth, frameHeight, viewParams) {
+    return "Embed code not supported in bookreader demo.";
+}
+
+// Let's go!
+br.init();
+
+// read-aloud and search need backend compenents and are not supported in the demo
+$('#BRtoolbar').find('.read').hide();
+$('#textSrch').hide();
+$('#btnSrch').hide();
+
+} );
+</script>
+
+</head>
+<body style="background-color: ##939598;">
+
+<div id="BookReader">
+    Internet Archive BookReader<br/>
+    
+    <noscript>
+    <p>
+        The BookReader requires JavaScript to be enabled. Please check that your browser supports JavaScript and that it is enabled in the browser settings.
+    </p>
+    </noscript>
+</div>
+
+
+</body>
+</html>
+PAGE
+
 sub should_handle {
     my($self, $file) = @_;
     return -d $file || -f $file;
@@ -63,12 +227,13 @@ sub return_dir_redirect {
 sub serve_path {
     my($self, $env, $path, $fullpath) = @_;
 
+	my $req = Plack::Request->new($env);
+
     if (-f $path) {
 
-		my $req = Plack::Request->new($env);
 		if ( my $reduce = $req->param('reduce') ) {
 			$reduce = int($reduce); # BookReader javascript somethimes returns float
-			warn "# -scale 1/$reduce $path\n";
+			warn "# reduce $reduce $path\n";
 
 			my $cache_path = "cache/$path.reduce.$reduce.jpg";
 			if ( $reduce <= 1 ) {
@@ -81,6 +246,7 @@ sub serve_path {
 					width  => $w / $reduce,
 					height => $h / $reduce
 				);
+				make_basedir $cache_path;
 				$image->Write( filename => $cache_path );
 				warn "# created $cache_path ", -s $cache_path, " bytes\n";
 			}
@@ -130,15 +296,38 @@ sub serve_path {
     }
 
     my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
-    my $files = join "\n", map {
-        my $f = $_;
-        sprintf $dir_file, map Plack::Util::encode_html($_), @$f;
-    } @files;
+	my $page = 'empty';
 
-	my $meta = {
-		page_urls => [ map { "$dir_url/$_" } sort { $a <=> $b } @page_files ],
-	};
-    my $page  = sprintf $dir_page, $dir, $dir, $files, dump( $meta );
+	if ( $req->param('bookreader') ) {
+
+		my $pages;
+		my $pages_path = "cache/$dir_url/bookreader.json";
+		if ( 0 && -e $pages_path ) {
+			$pages = decode_json read_file $pages_path;
+		} else {
+			$pages = [
+				map {
+					my ( $w, $h ) = imgsize("$path/$_"); 
+					$w && $h ? [ "$dir_url/$_", $w, $h ] : []
+				} sort { $a <=> $b } @page_files
+			];
+			make_basedir $pages_path;
+			write_file $pages_path => encode_json( $pages );
+			warn "# created $pages_path ", -s $pages_path, " bytes\n";
+		}
+		warn "# pages = ",dump($pages);
+		$page = sprintf $reader_page, $dir, encode_json( $pages );
+
+	} else {
+
+		my $files = join "\n", map {
+			my $f = $_;
+			sprintf $dir_file, map Plack::Util::encode_html($_), @$f;
+		} @files;
+
+		$page = sprintf $dir_page, $dir, $dir, $files;
+
+	}
 
     return [ 200, ['Content-Type' => 'text/html; charset=utf-8'], [ $page ] ];
 }
