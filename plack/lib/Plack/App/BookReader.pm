@@ -237,7 +237,7 @@ sub serve_path {
 			warn "# reduce $reduce $path\n";
 
 			my $cache_path = "cache/$path.reduce.$reduce.jpg";
-			if ( $reduce <= 1 ) {
+			if ( $reduce <= 1 && $path =~ m/\.jpe?g$/ ) {
 				$cache_path = $path;
 			} elsif ( ! -e $cache_path ) {
 				my $image = Graphics::Magick->new( magick => 'jpg' );
@@ -277,7 +277,7 @@ sub serve_path {
 	my @page_files;
 
     for my $basename (sort { $a cmp $b } @children) {
-		push @page_files, $basename if $basename =~ m/\.jpg$/;
+		push @page_files, $basename if $basename =~ m/\.(jpg|gif)$/;
         my $file = "$path/$basename";
         my $url = $dir_url . $basename;
 
