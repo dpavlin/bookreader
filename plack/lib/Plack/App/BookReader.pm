@@ -169,7 +169,7 @@ br.numLeafs = pages.length;
 
 // Book title and the URL used for the book title link
 br.bookTitle= '%s';
-br.bookUrl  = 'http://openlibrary.org';
+br.bookUrl  = '%s';
 
 // Override the path used to find UI images
 br.imagesBaseURL = '/BookReader/images/';
@@ -296,6 +296,8 @@ sub serve_path {
         push @files, [ $url, $basename, $stat[7], $mime_type, HTTP::Date::time2str($stat[9]) ];
     }
 
+	warn "# page_files = ",dump( @page_files );
+
     my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
 	my $page = 'empty';
 
@@ -303,7 +305,7 @@ sub serve_path {
 
 		my $pages;
 		my $pages_path = "cache/$dir_url/bookreader.json";
-		if ( 0 && -e $pages_path ) {
+		if ( -e $pages_path ) {
 			$pages = decode_json read_file $pages_path;
 		} else {
 			$pages = [
@@ -318,7 +320,7 @@ sub serve_path {
 			warn "# created $pages_path ", -s $pages_path, " bytes\n";
 		}
 		warn "# pages = ",dump($pages);
-		$page = sprintf $reader_page, $dir, encode_json( $pages ), $dir; # FIXME: title
+		$page = sprintf $reader_page, $dir, encode_json( $pages ), $dir, $dir;
 
 	} else {
 
@@ -327,7 +329,8 @@ sub serve_path {
 			sprintf $dir_file, map Plack::Util::encode_html($_), @$f;
 		} @files;
 
-		$page = sprintf $dir_page, $dir, $dir, $files;
+		$page = sprintf $dir_page, $dir, $dir, $files, 
+			@page_files ? '<form><input type=submit name=bookreader value="Read"></form>' : '';
 
 	}
 
