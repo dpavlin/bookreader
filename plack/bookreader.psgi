@@ -25,6 +25,9 @@ builder {
 	mount '/dk.nsk.hr' =>
 		Plack::App::BookReader->new({ root => "/home/dpavlin/dk.nsk.hr" })->to_app;
 
+	mount '/share' =>
+		Plack::App::BookReader->new({ root => "/mnt/share" })->to_app;
+
 	mount '/NSK' =>
 		Plack::App::Directory->new({ root => "NSK" })->to_app;
 
