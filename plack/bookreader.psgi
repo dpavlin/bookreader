@@ -3,9 +3,10 @@ use warnings;
 use strict;
 
 use Plack::Builder;
-use Plack::App::Directory;
 use Plack::Middleware::Debug;
-
+use Plack::App::Directory;
+use lib './lib';
+use Plack::App::BookReader;
 
 builder {
 
@@ -21,7 +22,7 @@ builder {
 	mount '/BookReader' =>
 		Plack::App::Directory->new({ root => "../BookReader" })->to_app;
 
-	mount '/BookReaderDemo' =>
-		Plack::App::Directory->new({ root => "../BookReaderDemo" })->to_app;
+	mount '/dk.nsk.hr' =>
+		Plack::App::BookReader->new({ root => "/home/dpavlin/dk.nsk.hr" })->to_app;
 
 }
