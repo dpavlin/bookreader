@@ -108,6 +108,7 @@ br.getPageHeight = function(index) {
 // We load the images from archive.org -- you can modify this function to retrieve images
 // using a different URL structure
 br.getPageURI = function(index, reduce, rotate) {
+	if ( ! pages[index] ) return;
     // reduce and rotate are ignored in this simple implementation, but we
     // could e.g. look at reduce and load images from a different directory
     // or pass the information to an image server
@@ -167,7 +168,7 @@ br.getPageNum = function(index) {
 br.numLeafs = pages.length;
 
 // Book title and the URL used for the book title link
-br.bookTitle= 'Open Library BookReader Presentation';
+br.bookTitle= '%s';
 br.bookUrl  = 'http://openlibrary.org';
 
 // Override the path used to find UI images
@@ -306,9 +307,10 @@ sub serve_path {
 			$pages = decode_json read_file $pages_path;
 		} else {
 			$pages = [
+				grep { defined $_ }
 				map {
 					my ( $w, $h ) = imgsize("$path/$_"); 
-					$w && $h ? [ "$dir_url/$_", $w, $h ] : []
+					$w && $h ? [ "$dir_url/$_", $w, $h ] : undef
 				} sort { $a <=> $b } @page_files
 			];
 			make_basedir $pages_path;
@@ -316,7 +318,7 @@ sub serve_path {
 			warn "# created $pages_path ", -s $pages_path, " bytes\n";
 		}
 		warn "# pages = ",dump($pages);
-		$page = sprintf $reader_page, $dir, encode_json( $pages );
+		$page = sprintf $reader_page, $dir, encode_json( $pages ), $dir; # FIXME: title
 
 	} else {
 
