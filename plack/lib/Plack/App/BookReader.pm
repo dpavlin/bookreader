@@ -100,7 +100,7 @@ sub serve_path {
 
     my @files = ([ "../", "Parent Directory", '', '', '' ]);
 
-    my $dh = DirHandle->new($dir);
+    my $dh = DirHandle->new($path);
     my @children;
     while (defined(my $ent = $dh->read)) {
         next if $ent eq '.';
@@ -111,7 +111,7 @@ sub serve_path {
 
     for my $basename (sort { $a cmp $b } @children) {
 		push @page_files, $basename if $basename =~ m/\.jpg$/;
-        my $file = "$dir/$basename";
+        my $file = "$path/$basename";
         my $url = $dir_url . $basename;
 
         my $is_dir = -d $file;
@@ -129,7 +129,7 @@ sub serve_path {
         push @files, [ $url, $basename, $stat[7], $mime_type, HTTP::Date::time2str($stat[9]) ];
     }
 
-    my $path  = Plack::Util::encode_html( $env->{PATH_INFO} );
+    my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
     my $files = join "\n", map {
         my $f = $_;
         sprintf $dir_file, map Plack::Util::encode_html($_), @$f;
@@ -138,7 +138,7 @@ sub serve_path {
 	my $meta = {
 		page_urls => [ map { "$dir_url/$_" } sort { $a <=> $b } @page_files ],
 	};
-    my $page  = sprintf $dir_page, $path, $path, $files, dump( $meta );
+    my $page  = sprintf $dir_page, $dir, $dir, $files, dump( $meta );
 
     return [ 200, ['Content-Type' => 'text/html; charset=utf-8'], [ $page ] ];
 }
