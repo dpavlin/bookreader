@@ -20,7 +20,8 @@ sub make_basedir {
 	my $path = shift;
 	return if -e $path;
 	$path =~ s{/[^/]+$}{} || die "no dir/file in $path";
-	File::Path::make_path $path;
+	warn "# make_basedir $path\n";
+	-e $path ? 0 : File::Path::make_path $path;
 }
 
 # Stolen from rack/directory.rb
@@ -224,12 +225,16 @@ sub return_dir_redirect {
     ];
 }
 
-sub convert {
-	warn "# convert ",dump(@_);
+sub convert { gm('convert',@_) }
+sub montage { gm('montage',@_) }
+
+sub gm {
+	my $command = shift;
+	warn "# $command ",dump(@_);
 	my $t = time();
-	system 'gm', 'convert', @_;
+	system 'gm', $command, @_;
 	$t = time() - $t;
-	warn sprintf("## created %d bytes in %.2f s %s\n", -s $_[-1], $t, $_[-1]);
+	warn sprintf("## $command %d bytes in %.2f s %s\n", -s $_[-1], $t, $_[-1]);
 }
 
 sub longest_common_prefix {
@@ -252,12 +257,47 @@ sub sort_pages {
 	} @_;
 }
 
-sub convert_pdf {
-	my ($page, $cache_dir) = @_;
-
+sub convert_pdf_page {
+	my ($pdf, $page, $path) = @_;
 	my $t = time();
+
+	make_path $path;
+
+	warn "# pdfimages $page $pdf -> $path/\n";
+	system 'pdfimages', '-f', $page, '-l', $page, '-q', '-j', '-p', $pdf, "$path/p";
+
+	my @parts = ();
+	# glob split on spaces!
+	opendir(my $dh, $path);
+	while (readdir($dh)) {
+		my $full = "$path/$_";
+		warn "## readdir $full\n";
+		next unless -f $full; # skip . ..
+		push @parts, $_;
+	}
+	closedir $dh;
+
+	die "can't find images for $pdf in $path" unless $#parts >= 0;
+
+	@parts = sort_pages @parts;
+
+	my $image = "$path.jpg";
+
+	if ( $#parts == 0 ) { # single image
+			my $part = "$path/$parts[0]";
+			convert( $part => $image );
+	} else {
+			my @full = map { "$path/$_" } @parts;
+			montage( @full, '-tile', '1x'.scalar(@full), '-geometry', '+1+1' => $image );
+	}
+
+	die "$image: $!" unless -r $image;
+
+	remove_tree $path;
+
 	$t = time() - $t;
-	warn sprintf("## %.2f s %s\n", $t);
+	warn sprintf("## page: %d in %.2f s for %s\n", $page, $t, $image);
+	return $image;
 }
 
 sub serve_path {
@@ -346,36 +386,23 @@ sub serve_path {
 			foreach my $page ( @page_files ) {
 				my $image = Graphics::Magick->new;
 				if ( $page =~ m/\.pdf$/ ) {
-					die "$path/$page: $!" unless -e "$path/$page";
-					my $cache_dir = "cache/$dir_url/$page/";
-					make_path $cache_dir;
-					warn "# pdfimages $path/$page -> $cache_dir";
-					system 'pdfimages', '-q', '-j', '-p', "$path/$page", $cache_dir;
+					die "$path/$page: $!" unless -r "$path/$page";
 
-					my @pdf_pages = ();
+					my $info = `pdfinfo $path/$page`;
+					warn "# pdfinfo $path/$page\n$info\n";
+					my $pdf_pages = $1 if ( $info =~ m/Pages:\s*(\d+)/s );
+					die "can't find number of pages for $path/$page in:\n$pdf_pages\n" unless $pdf_pages;
 
-					# glob split on spaces!
-					opendir(my $dh, $cache_dir);
-					while (readdir($dh)) {
-						warn "## readdir = [$_]\n";
-						my $page = "$cache_dir/$_";
-						next unless -f $page; # skip . ..
-						push @pdf_pages, $page;
-					}
-					closedir $dh;
 
-					foreach $page ( sort_pages @pdf_pages ) {
-						if ( $page !~ m/\.jpg$/ ) {
-							convert( $page => $page . '.jpg' );
-							unlink $page;
-							$page .= '.jpg';
-						}
+					$pdf_pages = $ENV{MAX_PAGES} if $pdf_pages > $ENV{MAX_PAGES}; # FIXME
 
-						warn "## ping $page\n";
-						die "$page: $!" unless -r $page;
-						my ( $w, $h, $size, $format ) = $image->ping($page);
-						warn "## image size $w*$h $size $format $page\n";
-						push @$pages, [ "/$page", $w, $h ] if $w && $h;
+					foreach my $nr ( 1 .. $pdf_pages ) {
+						my $cache_path = "cache/$dir_url/$page";
+						my $page_url = convert_pdf_page( "$path/$page", $nr, $cache_path . '.' . $nr );
+						warn "## ping $page_url\n";
+						my ( $w, $h, $size, $format ) = $image->ping($page_url);
+						warn "## image size $w*$h $size $format $page_url\n";
+						push @$pages, [ "/$page_url", $w, $h ] if $w && $h;
 					}
 
 				} else {
