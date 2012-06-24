@@ -305,10 +305,11 @@ sub render_pdf_page {
 	my ( $pdf, $page, $path ) = @_;
 	my $t = time();
 
-	warn "# pdftocairo $pdf\n";
-	system('pdftocairo', '-jpeg', '-f', $page, '-l', $page, $pdf, $path);
+	my $image = sprintf( '%s-%03d', $path, $page );
+	warn "# pdftocairo $pdf -> $image\n";
+	system('pdftocairo', '-jpeg', '-f', $page, '-l', $page, '-singlefile', $pdf, $image);
 
-	my $image = sprintf( '%s-%03d.jpg', $path, $page );
+	$image .= '.jpg'; # added by pdftocairo
 
 	die "can't find $image: $!" unless -r $image;
 
@@ -418,7 +419,7 @@ sub serve_path {
 
 					my $is_bitmap = -s $txt == $pdf_pages;
 
-					$pdf_pages = $ENV{MAX_PAGES} if $pdf_pages > $ENV{MAX_PAGES}; # FIXME
+					$pdf_pages = $ENV{MAX_PAGES} if $ENV{MAX_PAGES} && $pdf_pages > $ENV{MAX_PAGES}; # FIXME
 
 					foreach my $nr ( 1 .. $pdf_pages ) {
 						my $page_url = $is_bitmap
