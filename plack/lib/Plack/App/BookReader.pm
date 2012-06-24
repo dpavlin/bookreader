@@ -389,7 +389,7 @@ sub serve_path {
 				if ( $page =~ m/\.pdf$/ ) {
 					die "$path/$page: $!" unless -r "$path/$page";
 
-					my $info = `pdfinfo $path/$page`;
+					my $info = `pdfinfo "$path/$page"`;
 					warn "# pdfinfo $path/$page\n$info\n";
 					my $pdf_pages = $1 if ( $info =~ m/Pages:\s*(\d+)/s );
 					die "can't find number of pages for $path/$page in:\n$pdf_pages\n" unless $pdf_pages;
