@@ -445,7 +445,7 @@ sub serve_path {
 			warn "# created $pages_path ", -s $pages_path, " bytes\n";
 		}
 		warn "# pages = ",dump($pages);
-		$page = sprintf $reader_page, $dir, encode_json( $pages ), $dir, '..';
+		$page = sprintf $reader_page, $dir, encode_json( $pages ), $dir, $dir =~ m/\/$/ ? '..' : '.';
 
 	} else {
 
