@@ -265,7 +265,7 @@ sub serve_path {
         return $self->return_dir_redirect($env);
     }
 
-    my @files = ([ "../", "Parent Directory", '', '', '' ]);
+    my @files = ();
 
     my $dh = DirHandle->new($path);
     my @children;
