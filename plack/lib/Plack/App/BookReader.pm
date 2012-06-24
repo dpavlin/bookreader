@@ -232,6 +232,16 @@ sub convert {
 	warn sprintf("## created %d bytes in %.2f s %s\n", -s $_[-1], $t, $_[-1]);
 }
 
+sub longest_common_prefix {
+	   my $prefix = shift;
+	for (@_) {
+		chop $prefix while (! /^\Q$prefix\E/i);
+	}
+	warn "# longest_common_prefix [$prefix]\n";
+	return $prefix;
+}
+
+
 sub serve_path {
     my($self, $env, $path, $fullpath) = @_;
 
@@ -276,7 +286,7 @@ sub serve_path {
 	my @page_files;
 
     for my $basename (sort { $a cmp $b } @children) {
-		push @page_files, $basename if $basename =~ m/\d+\.(jpg|gif|pdf)$/;
+		push @page_files, $basename if $basename =~ m/\d+\D?\.(jpg|gif|pdf)$/;
         my $file = "$path/$basename";
         my $url = $dir_url . $basename;
 
@@ -295,7 +305,17 @@ sub serve_path {
         push @files, [ $url, $basename, $stat[7], $mime_type, HTTP::Date::time2str($stat[9]) ];
     }
 
-	warn "# page_files = ",dump( @page_files );
+	if ( @page_files ) {
+		my $prefix = longest_common_prefix @page_files;
+		@page_files = sort {
+					my ( $an,$bn ) = ( $a,$b );
+					$an =~ s/^\Q$prefix\E//i; $an =~ s/\D+//g;
+					$bn =~ s/^\Q$prefix\E//i; $bn =~ s/\D+//g;
+					warn "## sort [$a] $an <=> $bn [$b]\n";
+					$an <=> $bn;
+		} @page_files;
+		warn "# page_files = ",dump( @page_files );
+	}
 
     my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
 	my $page = 'empty';
@@ -307,7 +327,7 @@ sub serve_path {
 		if ( -e $pages_path ) {
 			$pages = decode_json read_file $pages_path;
 		} else {
-			foreach my $page ( sort { $a <=> $b } @page_files ) {
+			foreach my $page ( @page_files ) {
 				my $image = Graphics::Magick->new;
 				if ( $page =~ m/\.pdf$/ ) {
 					my $cache_dir = "cache/$dir_url/$page/";
