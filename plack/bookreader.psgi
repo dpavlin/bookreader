@@ -19,6 +19,9 @@ builder {
 
 	enable 'StackTrace';
 
+	enable "ConditionalGET";
+	enable "Plack::Middleware::ETag", file_etag => [ "inode", "size", "mtime" ];
+
 	mount '/BookReader' =>
 		Plack::App::Directory->new({ root => "../BookReader" })->to_app;
 
