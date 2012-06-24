@@ -13,9 +13,8 @@ use File::Path qw(make_path remove_tree);
 use Graphics::Magick;
 use File::Slurp;
 use JSON;
-use Time::Piece ();
-use Time::Seconds 'ONE_YEAR';
 use autodie;
+use Time::HiRes qw(time);
 
 sub make_basedir {
 	my $path = shift;
@@ -225,6 +224,14 @@ sub return_dir_redirect {
     ];
 }
 
+sub convert {
+	warn "# convert ",dump(@_);
+	my $t = time();
+	system 'gm', 'convert', @_;
+	$t = time() - $t;
+	warn sprintf("## created %d bytes in %.2f s %s\n", -s $_[-1], $t, $_[-1]);
+}
+
 sub serve_path {
     my($self, $env, $path, $fullpath) = @_;
 
@@ -242,17 +249,8 @@ sub serve_path {
 			if ( $reduce <= 1 && $path =~ m/\.jpe?g$/ ) {
 				$cache_path = $path;
 			} elsif ( ! -e $cache_path ) {
-				my $image = Graphics::Magick->new;
-				warn "## Read $path ", -s $path, " bytes\n";
-				$image->Read($path);
-				my ( $w, $h ) = $image->Get('width','height');
-				$image->Resize(
-					width  => $w / $reduce,
-					height => $h / $reduce
-				);
 				make_basedir $cache_path;
-				$image->Write( filename => $cache_path );
-				warn "# created $cache_path ", -s $cache_path, " bytes\n";
+				convert( '-scale', ( 100 / $reduce ) .'%', $path => $cache_path );
 			}
 
         	return $self->SUPER::serve_path($env, $cache_path, $fullpath);
@@ -306,7 +304,7 @@ sub serve_path {
 
 		my $pages; # []
 		my $pages_path = "cache/$dir_url/bookreader.json";
-		if ( 0 && -e $pages_path ) {
+		if ( -e $pages_path ) {
 			$pages = decode_json read_file $pages_path;
 		} else {
 			foreach my $page ( sort { $a <=> $b } @page_files ) {
@@ -325,8 +323,7 @@ sub serve_path {
 						next unless -f $page; # skip . ..
 
 						if ( $page !~ m/\.jpg$/ ) {
-							warn "# convert to jpg";
-							system 'gm', 'convert', $page, $page . '.jpg';
+							convert( $page => $page . '.jpg' );
 							unlink $page;
 							$page .= '.jpg';
 						}
