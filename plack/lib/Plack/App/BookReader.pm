@@ -9,13 +9,13 @@ use DirHandle;
 use URI::Escape;
 use Plack::Request;
 use Data::Dump qw(dump);
-use File::Path;
+use File::Path qw(make_path remove_tree);
 use Graphics::Magick;
 use File::Slurp;
-use Image::Size;
 use JSON;
 use Time::Piece ();
 use Time::Seconds 'ONE_YEAR';
+use autodie;
 
 sub make_basedir {
 	my $path = shift;
@@ -230,17 +230,20 @@ sub serve_path {
 
 	my $req = Plack::Request->new($env);
 
+    my $dir_url = $env->{SCRIPT_NAME} . $env->{PATH_INFO};
+
     if (-f $path) {
 
 		if ( my $reduce = $req->param('reduce') ) {
 			$reduce = int($reduce); # BookReader javascript somethimes returns float
 			warn "# reduce $reduce $path\n";
 
-			my $cache_path = "cache/$path.reduce.$reduce.jpg";
+			my $cache_path = "cache/$dir_url.reduce.$reduce.jpg";
 			if ( $reduce <= 1 && $path =~ m/\.jpe?g$/ ) {
 				$cache_path = $path;
 			} elsif ( ! -e $cache_path ) {
-				my $image = Graphics::Magick->new( magick => 'jpg' );
+				my $image = Graphics::Magick->new;
+				warn "## Read $path ", -s $path, " bytes\n";
 				$image->Read($path);
 				my ( $w, $h ) = $image->Get('width','height');
 				$image->Resize(
@@ -259,8 +262,6 @@ sub serve_path {
         return $self->SUPER::serve_path($env, $path, $fullpath);
     }
 
-    my $dir_url = $env->{SCRIPT_NAME} . $env->{PATH_INFO};
-
     if ($dir_url !~ m{/$}) {
         return $self->return_dir_redirect($env);
     }
@@ -277,7 +278,7 @@ sub serve_path {
 	my @page_files;
 
     for my $basename (sort { $a cmp $b } @children) {
-		push @page_files, $basename if $basename =~ m/\.(jpg|gif)$/;
+		push @page_files, $basename if $basename =~ m/\d+\.(jpg|gif|pdf)$/;
         my $file = "$path/$basename";
         my $url = $dir_url . $basename;
 
@@ -303,18 +304,48 @@ sub serve_path {
 
 	if ( $req->param('bookreader') ) {
 
-		my $pages;
+		my $pages; # []
 		my $pages_path = "cache/$dir_url/bookreader.json";
-		if ( -e $pages_path ) {
+		if ( 0 && -e $pages_path ) {
 			$pages = decode_json read_file $pages_path;
 		} else {
-			$pages = [
-				grep { defined $_ }
-				map {
-					my ( $w, $h ) = imgsize("$path/$_"); 
-					$w && $h ? [ "$dir_url/$_", $w, $h ] : undef
-				} sort { $a <=> $b } @page_files
-			];
+			foreach my $page ( sort { $a <=> $b } @page_files ) {
+				my $image = Graphics::Magick->new;
+				if ( $page =~ m/\.pdf$/ ) {
+					my $cache_dir = "cache/$dir_url/$page/";
+					make_path $cache_dir;
+					warn "# pdfimages $path/$page -> $cache_dir";
+					system 'pdfimages', '-q', '-j', '-p', "$path/$page", $cache_dir;
+
+					# glob split on spaces!
+					opendir(my $dh, $cache_dir);
+					while (readdir($dh)) {
+						warn "## readdir = [$_]\n";
+						my $page = "$cache_dir/$_";
+						next unless -f $page; # skip . ..
+
+						if ( $page !~ m/\.jpg$/ ) {
+							warn "# convert to jpg";
+							system 'gm', 'convert', $page, $page . '.jpg';
+							unlink $page;
+							$page .= '.jpg';
+						}
+
+						warn "## ping $page\n";
+						die "$page: $!" unless -r $page;
+						my ( $w, $h, $size, $format ) = $image->ping($page);
+						warn "## image size $w*$h $size $format $page\n";
+						push @$pages, [ "/$page", $w, $h ] if $w && $h;
+					}
+					closedir $dh;
+
+				} else {
+					die "$path/$page: $!" unless -r "$path/$page";
+					my ( $w, $h, $size, $format ) = $image->ping("$path/$page");
+					warn "# image size $w*$h $size $format $path/$page\n";
+					push @$pages, [ "$dir_url/$page", $w, $h ] if $w && $h;
+				}
+			}
 			make_basedir $pages_path;
 			write_file $pages_path => encode_json( $pages );
 			warn "# created $pages_path ", -s $pages_path, " bytes\n";
@@ -330,7 +361,7 @@ sub serve_path {
 		} @files;
 
 		$page = sprintf $dir_page, $dir, $dir, $files, 
-			@page_files ? '<form><input type=submit name=bookreader value="Read"></form>' : '';
+			@page_files ? '<form><input type=submit name=bookreader value="Read"></form>' . dump( [ @page_files ] ) : '';
 
 	}
 

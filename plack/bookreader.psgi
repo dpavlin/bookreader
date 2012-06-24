@@ -25,6 +25,11 @@ builder {
 	mount '/BookReader' =>
 		Plack::App::Directory->new({ root => "../BookReader" })->to_app;
 
+	mount '/cache/' =>
+		Plack::App::BookReader->new({ root => "cache" })->to_app;
+
+	# resouces
+
 	mount '/dk.nsk.hr' =>
 		Plack::App::BookReader->new({ root => "/home/dpavlin/dk.nsk.hr" })->to_app;
 
