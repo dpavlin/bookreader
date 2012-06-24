@@ -241,6 +241,24 @@ sub longest_common_prefix {
 	return $prefix;
 }
 
+sub sort_pages {
+	my $prefix = longest_common_prefix @_;
+	sort {
+			my ( $an,$bn ) = ( $a,$b );
+			$an =~ s/^\Q$prefix\E//i; $an =~ s/\D+//g;
+			$bn =~ s/^\Q$prefix\E//i; $bn =~ s/\D+//g;
+			warn "## sort [$a] $an <=> $bn [$b]\n";
+			$an <=> $bn;
+	} @_;
+}
+
+sub convert_pdf {
+	my ($page, $cache_dir) = @_;
+
+	my $t = time();
+	$t = time() - $t;
+	warn sprintf("## %.2f s %s\n", $t);
+}
 
 sub serve_path {
     my($self, $env, $path, $fullpath) = @_;
@@ -248,8 +266,13 @@ sub serve_path {
 	my $req = Plack::Request->new($env);
 
     my $dir_url = $env->{SCRIPT_NAME} . $env->{PATH_INFO};
+	my @files = ();
+	my @page_files;
 
-    if (-f $path) {
+	if ( -f $path && $path =~ s{/([^/]+\.pdf)$}{} ) {
+		push @page_files, $1;
+		warn "# single pdf: $path / $1\n";
+    } elsif (-f $path ) {
 
 		if ( my $reduce = $req->param('reduce') ) {
 			$reduce = int($reduce); # BookReader javascript somethimes returns float
@@ -268,52 +291,45 @@ sub serve_path {
 		}
 
         return $self->SUPER::serve_path($env, $path, $fullpath);
-    }
+     } elsif ( -d $path ) {
 
-    if ($dir_url !~ m{/$}) {
-        return $self->return_dir_redirect($env);
-    }
+		if ($dir_url !~ m{/$}) {
+			return $self->return_dir_redirect($env);
+		}
 
-    my @files = ();
+		my $dh = DirHandle->new($path);
+		my @children;
+		while (defined(my $ent = $dh->read)) {
+			next if $ent eq '.';
+			push @children, $ent;
+		}
 
-    my $dh = DirHandle->new($path);
-    my @children;
-    while (defined(my $ent = $dh->read)) {
-        next if $ent eq '.';
-        push @children, $ent;
-    }
+		for my $basename (sort { $a cmp $b } @children) {
+			push @page_files, $basename if $basename =~ m/\d+\D?\.(jpg|gif|pdf)$/;
+			my $file = "$path/$basename";
+			my $url = $dir_url . $basename;
 
-	my @page_files;
-
-    for my $basename (sort { $a cmp $b } @children) {
-		push @page_files, $basename if $basename =~ m/\d+\D?\.(jpg|gif|pdf)$/;
-        my $file = "$path/$basename";
-        my $url = $dir_url . $basename;
-
-        my $is_dir = -d $file;
-        my @stat = stat _;
+			my $is_dir = -d $file;
+			my @stat = stat _;
 
 
-        $url = join '/', map {uri_escape($_)} split m{/}, $url;
+			$url = join '/', map {uri_escape($_)} split m{/}, $url;
 
-        if ($is_dir) {
-            $basename .= "/";
-            $url      .= "/";
-        }
+			if ($is_dir) {
+				$basename .= "/";
+				$url      .= "/";
+			}
 
-        my $mime_type = $is_dir ? 'directory' : ( Plack::MIME->mime_type($file) || 'text/plain' );
-        push @files, [ $url, $basename, $stat[7], $mime_type, HTTP::Date::time2str($stat[9]) ];
-    }
+			my $mime_type = $is_dir ? 'directory' : ( Plack::MIME->mime_type($file) || 'text/plain' );
+			push @files, [ $url, $basename, $stat[7], $mime_type, HTTP::Date::time2str($stat[9]) ];
+		}
+
+	} else {
+		die "Unsupported format: $path";
+	}
 
 	if ( @page_files ) {
-		my $prefix = longest_common_prefix @page_files;
-		@page_files = sort {
-					my ( $an,$bn ) = ( $a,$b );
-					$an =~ s/^\Q$prefix\E//i; $an =~ s/\D+//g;
-					$bn =~ s/^\Q$prefix\E//i; $bn =~ s/\D+//g;
-					warn "## sort [$a] $an <=> $bn [$b]\n";
-					$an <=> $bn;
-		} @page_files;
+		@page_files = sort_pages @page_files;
 		warn "# page_files = ",dump( @page_files );
 	}
 
@@ -330,10 +346,13 @@ sub serve_path {
 			foreach my $page ( @page_files ) {
 				my $image = Graphics::Magick->new;
 				if ( $page =~ m/\.pdf$/ ) {
+					die "$path/$page: $!" unless -e "$path/$page";
 					my $cache_dir = "cache/$dir_url/$page/";
 					make_path $cache_dir;
 					warn "# pdfimages $path/$page -> $cache_dir";
 					system 'pdfimages', '-q', '-j', '-p', "$path/$page", $cache_dir;
+
+					my @pdf_pages = ();
 
 					# glob split on spaces!
 					opendir(my $dh, $cache_dir);
@@ -341,7 +360,11 @@ sub serve_path {
 						warn "## readdir = [$_]\n";
 						my $page = "$cache_dir/$_";
 						next unless -f $page; # skip . ..
+						push @pdf_pages, $page;
+					}
+					closedir $dh;
 
+					foreach $page ( sort_pages @pdf_pages ) {
 						if ( $page !~ m/\.jpg$/ ) {
 							convert( $page => $page . '.jpg' );
 							unlink $page;
@@ -354,7 +377,6 @@ sub serve_path {
 						warn "## image size $w*$h $size $format $page\n";
 						push @$pages, [ "/$page", $w, $h ] if $w && $h;
 					}
-					closedir $dh;
 
 				} else {
 					die "$path/$page: $!" unless -r "$path/$page";
