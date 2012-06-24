@@ -15,6 +15,7 @@ use File::Slurp;
 use JSON;
 use autodie;
 use Time::HiRes qw(time);
+use Encode;
 
 sub make_basedir {
 	my $path = shift;
@@ -402,18 +403,20 @@ sub serve_path {
 						warn "## ping $page_url\n";
 						my ( $w, $h, $size, $format ) = $image->ping($page_url);
 						warn "## image size $w*$h $size $format $page_url\n";
-						push @$pages, [ "/$page_url", $w, $h ] if $w && $h;
+						my $url = decode('utf-8',"/$page_url");
+						push @$pages, [ $url, $w, $h ] if $w && $h;
 					}
 
 				} else {
 					die "$path/$page: $!" unless -r "$path/$page";
 					my ( $w, $h, $size, $format ) = $image->ping("$path/$page");
 					warn "# image size $w*$h $size $format $path/$page\n";
-					push @$pages, [ "$dir_url/$page", $w, $h ] if $w && $h;
+					my $url = decode('utf-8',"$dir_url/$page");
+					push @$pages, [ $url, $w, $h ] if $w && $h;
 				}
 			}
 			make_basedir $pages_path;
-			write_file $pages_path => encode_json( $pages );
+			write_file $pages_path, => encode_json( $pages );
 			warn "# created $pages_path ", -s $pages_path, " bytes\n";
 		}
 		warn "# pages = ",dump($pages);
