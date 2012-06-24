@@ -301,6 +301,22 @@ sub convert_pdf_page {
 	return $image;
 }
 
+sub render_pdf_page {
+	my ( $pdf, $page, $path ) = @_;
+	my $t = time();
+
+	warn "# pdftocairo $pdf\n";
+	system('pdftocairo', '-jpeg', '-f', $page, '-l', $page, $pdf, $path);
+
+	my $image = sprintf( '%s-%03d.jpg', $path, $page );
+
+	die "can't find $image: $!" unless -r $image;
+
+	$t = time() - $t;
+	warn sprintf("## page: %d in %.2f s for %s\n", $page, $t, $image);
+	return $image;
+}
+
 sub serve_path {
     my($self, $env, $path, $fullpath) = @_;
 
@@ -394,12 +410,21 @@ sub serve_path {
 					my $pdf_pages = $1 if ( $info =~ m/Pages:\s*(\d+)/s );
 					die "can't find number of pages for $path/$page in:\n$pdf_pages\n" unless $pdf_pages;
 
+					my $cache_path = "cache/$dir_url/$page";
+					my $txt = "$cache_path.txt";
+					make_basedir $txt;
+					system('pdftotext', "$path/$page", $txt);
+					warn "# pdftotext $txt ", -s $txt, " bytes\n";
+
+					my $is_bitmap = -s $txt == $pdf_pages;
 
 					$pdf_pages = $ENV{MAX_PAGES} if $pdf_pages > $ENV{MAX_PAGES}; # FIXME
 
 					foreach my $nr ( 1 .. $pdf_pages ) {
-						my $cache_path = "cache/$dir_url/$page";
-						my $page_url = convert_pdf_page( "$path/$page", $nr, $cache_path . '.' . $nr );
+						my $page_url = $is_bitmap
+							? convert_pdf_page( "$path/$page", $nr, "$cache_path.$nr" )
+							: render_pdf_page(  "$path/$page", $nr, "$cache_path" )
+						;
 						warn "## ping $page_url\n";
 						my ( $w, $h, $size, $format ) = $image->ping($page_url);
 						warn "## image size $w*$h $size $format $page_url\n";
