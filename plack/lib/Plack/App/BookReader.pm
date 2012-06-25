@@ -113,7 +113,7 @@ br.getPageURI = function(index, reduce, rotate) {
     // reduce and rotate are ignored in this simple implementation, but we
     // could e.g. look at reduce and load images from a different directory
     // or pass the information to an image server
-	var url = pages[index][0] + '?reduce='+reduce;
+	var url = pages[index][0] + '?reduce='+Math.round(reduce);
 	console.debug('getPageURI', index, reduce, rotate, url);
     return url;
 }
