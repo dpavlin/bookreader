@@ -418,7 +418,9 @@ sub serve_path {
 
 					my $is_bitmap = -s $txt == $pdf_pages;
 
-					$pdf_pages = $ENV{MAX_PAGES} if $pdf_pages > $ENV{MAX_PAGES}; # FIXME
+					$pdf_pages = $ENV{MAX_PAGES} if defined $ENV{MAX_PAGES} && $pdf_pages > $ENV{MAX_PAGES}; # FIXME
+
+					warn "DIAG: bitmap:$is_bitmap pdf_pages:$pdf_pages\n";
 
 					foreach my $nr ( 1 .. $pdf_pages ) {
 						my $page_url = $is_bitmap
