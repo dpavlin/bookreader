@@ -395,8 +395,8 @@ sub serve_path {
 
 	if ( $req->param('bookreader') ) {
 
-		my $pages; # []
-		my $pages_path = "cache/$dir_url/bookreader.json";
+		my $pages; # []:
+		my $pages_path = "meta/$dir_url/bookreader.json";
 		if ( -e $pages_path ) {
 			$pages = decode_json read_file $pages_path;
 		} else {
