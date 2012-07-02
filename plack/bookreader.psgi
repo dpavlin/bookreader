@@ -10,6 +10,12 @@ use Plack::App::BookReader;
 
 builder {
 
+	enable "Plack::Middleware::ServerStatus::Lite",
+		path => '/server-status',
+#		allow => [ '127.0.0.1', '10.60.0.0/16', '193.198.0.0/16', '0.0.0.0/32' ], # FIXME doesn't work for IPv6
+		counter_file => '/tmp/counter_file',
+		scoreboard => '/tmp/server-status';
+
 	enable 'Debug', panels => [
 		qw(Environment Response Timer Memory),
 	];
