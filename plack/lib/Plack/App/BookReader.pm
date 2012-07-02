@@ -113,8 +113,9 @@ br.getPageURI = function(index, reduce, rotate) {
     // reduce and rotate are ignored in this simple implementation, but we
     // could e.g. look at reduce and load images from a different directory
     // or pass the information to an image server
-	var url = pages[index][0] + '?reduce='+Math.round(reduce);
-	console.debug('getPageURI', index, reduce, rotate, url);
+	var r = 1 << ( Math.ceil(reduce).toString(2).length - 1 ); // reduce to nearest higher pow 2
+	var url = pages[index][0] + '?reduce='+r;
+	console.debug('getPageURI', index, reduce, r, rotate, url);
     return url;
 }
 
