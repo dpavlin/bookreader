@@ -97,65 +97,65 @@ var pages = %s;
 // Return the width of a given page.  Here we assume all images are 800 pixels wide
 br.getPageWidth = function(index) {
 	if ( ! pages[index] ) return;
-    return parseInt( pages[index][1] );
+	return parseInt( pages[index][1] );
 }
 
 // Return the height of a given page.  Here we assume all images are 1200 pixels high
 br.getPageHeight = function(index) {
 	if ( ! pages[index] ) return;
-    return parseInt( pages[index][2] );
+	return parseInt( pages[index][2] );
 }
 
 // We load the images from archive.org -- you can modify this function to retrieve images
 // using a different URL structure
 br.getPageURI = function(index, reduce, rotate) {
 	if ( ! pages[index] ) return;
-    // reduce and rotate are ignored in this simple implementation, but we
-    // could e.g. look at reduce and load images from a different directory
-    // or pass the information to an image server
+	// reduce and rotate are ignored in this simple implementation, but we
+	// could e.g. look at reduce and load images from a different directory
+	// or pass the information to an image server
 	var r = 1 << ( Math.ceil(reduce).toString(2).length - 1 ); // reduce to nearest higher pow 2
 	var url = pages[index][0] + '?reduce='+r;
 	console.debug('getPageURI', index, reduce, r, rotate, url);
-    return url;
+	return url;
 }
 
 // Return which side, left or right, that a given page should be displayed on
 br.getPageSide = function(index) {
-    if (0 == (index & 0x1)) {
-        return 'R';
-    } else {
-        return 'L';
-    }
+	if (0 == (index & 0x1)) {
+		return 'R';
+	} else {
+		return 'L';
+	}
 }
 
 // This function returns the left and right indices for the user-visible
 // spread that contains the given index.  The return values may be
 // null if there is no facing page or the index is invalid.
 br.getSpreadIndices = function(pindex) {   
-    var spreadIndices = [null, null]; 
-    if ('rl' == this.pageProgression) {
-        // Right to Left
-        if (this.getPageSide(pindex) == 'R') {
-            spreadIndices[1] = pindex;
-            spreadIndices[0] = pindex + 1;
-        } else {
-            // Given index was LHS
-            spreadIndices[0] = pindex;
-            spreadIndices[1] = pindex - 1;
-        }
-    } else {
-        // Left to right
-        if (this.getPageSide(pindex) == 'L') {
-            spreadIndices[0] = pindex;
-            spreadIndices[1] = pindex + 1;
-        } else {
-            // Given index was RHS
-            spreadIndices[1] = pindex;
-            spreadIndices[0] = pindex - 1;
-        }
-    }
-    
-    return spreadIndices;
+	var spreadIndices = [null, null]; 
+	if ('rl' == this.pageProgression) {
+		// Right to Left
+		if (this.getPageSide(pindex) == 'R') {
+			spreadIndices[1] = pindex;
+			spreadIndices[0] = pindex + 1;
+		} else {
+			// Given index was LHS
+			spreadIndices[0] = pindex;
+			spreadIndices[1] = pindex - 1;
+		}
+	} else {
+		// Left to right
+		if (this.getPageSide(pindex) == 'L') {
+			spreadIndices[0] = pindex;
+			spreadIndices[1] = pindex + 1;
+		} else {
+			// Given index was RHS
+			spreadIndices[1] = pindex;
+			spreadIndices[0] = pindex - 1;
+		}
+	}
+	
+	return spreadIndices;
 }
 
 // For a given "accessible page index" return the page number in the book.
@@ -163,7 +163,7 @@ br.getSpreadIndices = function(pindex) {
 // For example, index 5 might correspond to "Page 1" if there is front matter such
 // as a title page and table of contents.
 br.getPageNum = function(index) {
-    return index+1;
+	return index+1;
 }
 
 // Total number of leafs
@@ -177,7 +177,7 @@ br.bookUrl  = '%s';
 br.imagesBaseURL = '/BookReader/images/';
 
 br.getEmbedCode = function(frameWidth, frameHeight, viewParams) {
-    return "Embed code not supported in bookreader demo.";
+	return "Embed code not supported in bookreader demo.";
 }
 
 // Let's go!
@@ -210,21 +210,21 @@ $('#btnSrch').hide();
 PAGE
 
 sub should_handle {
-    my($self, $file) = @_;
-    return -d $file || -f $file;
+	my($self, $file) = @_;
+	return -d $file || -f $file;
 }
 
 sub return_dir_redirect {
-    my ($self, $env) = @_;
-    my $uri = Plack::Request->new($env)->uri;
-    return [ 301,
-        [
-            'Location' => $uri . '/',
-            'Content-Type' => 'text/plain',
-            'Content-Length' => 8,
-        ],
-        [ 'Redirect' ],
-    ];
+	my ($self, $env) = @_;
+	my $uri = Plack::Request->new($env)->uri;
+	return [ 301,
+		[
+			'Location' => $uri . '/',
+			'Content-Type' => 'text/plain',
+			'Content-Length' => 8,
+		],
+		[ 'Redirect' ],
+	];
 }
 
 sub convert { gm('convert',@_) }
@@ -319,18 +319,18 @@ sub render_pdf_page {
 }
 
 sub serve_path {
-    my($self, $env, $path, $fullpath) = @_;
+	my($self, $env, $path, $fullpath) = @_;
 
 	my $req = Plack::Request->new($env);
 
-    my $dir_url = $env->{SCRIPT_NAME} . $env->{PATH_INFO};
+	my $dir_url = $env->{SCRIPT_NAME} . $env->{PATH_INFO};
 	my @files = ();
 	my @page_files;
 
 	if ( -f $path && $path =~ s{/([^/]+\.pdf)$}{} ) {
 		push @page_files, $1;
 		warn "# single pdf: $path / $1\n";
-    } elsif (-f $path ) {
+	} elsif ( -f $path ) {
 
 		if ( my $reduce = $req->param('reduce') ) {
 			$reduce = int($reduce); # BookReader javascript somethimes returns float
@@ -344,12 +344,12 @@ sub serve_path {
 				convert( '-scale', ( 100 / $reduce ) .'%', $path => $cache_path );
 			}
 
-        	return $self->SUPER::serve_path($env, $cache_path, $fullpath);
+			return $self->SUPER::serve_path($env, $cache_path, $fullpath);
 
 		}
 
-        return $self->SUPER::serve_path($env, $path, $fullpath);
-     } elsif ( -d $path ) {
+		return $self->SUPER::serve_path($env, $path, $fullpath);
+	 } elsif ( -d $path ) {
 
 		if ($dir_url !~ m{/$}) {
 			return $self->return_dir_redirect($env);
@@ -391,7 +391,7 @@ sub serve_path {
 		warn "# page_files = ",dump( @page_files );
 	}
 
-    my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
+	my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
 	my $page = 'empty';
 
 	if ( $req->param('bookreader') ) {
@@ -462,7 +462,7 @@ sub serve_path {
 
 	}
 
-    return [ 200, ['Content-Type' => 'text/html; charset=utf-8'], [ $page ] ];
+	return [ 200, ['Content-Type' => 'text/html; charset=utf-8'], [ $page ] ];
 }
 
 1;
