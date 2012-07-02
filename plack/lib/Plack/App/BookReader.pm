@@ -62,13 +62,13 @@ my $reader_page = <<'PAGE';
     <title>%s</title>
     
     <link rel="stylesheet" type="text/css" href="/BookReader/BookReader.css"/>
-    <script type="text/javascript" src="http://www.archive.org/includes/jquery-1.4.2.min.js"></script>
-    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery-ui-1.8.5.custom.min.js"></script>
+    <script type="text/javascript" src="http://archive.org/includes/jquery-1.4.2.min.js"></script>
+    <script type="text/javascript" src="http://archive.org/bookreader/jquery-ui-1.8.5.custom.min.js"></script>
 
-    <script type="text/javascript" src="http://www.archive.org/bookreader/dragscrollable.js"></script>
-    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery.colorbox-min.js"></script>
-    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery.ui.ipad.js"></script>
-    <script type="text/javascript" src="http://www.archive.org/bookreader/jquery.bt.min.js"></script>
+    <script type="text/javascript" src="http://archive.org/bookreader/dragscrollable.js"></script>
+    <script type="text/javascript" src="http://archive.org/bookreader/jquery.colorbox-min.js"></script>
+    <script type="text/javascript" src="http://archive.org/bookreader/jquery.ui.ipad.js"></script>
+    <script type="text/javascript" src="http://archive.org/bookreader/jquery.bt.min.js"></script>
 
     <script type="text/javascript" src="/BookReader/BookReader.js"></script>
 
