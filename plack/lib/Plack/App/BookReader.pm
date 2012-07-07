@@ -39,7 +39,8 @@ table { width:100%%; }
 .mtime { width:15em; }
   </style>
 </head><body>
-<h1>%s%s</h1>
+<h1>%s</h1>
+%s
 <hr />
 <table>
   <tr>
@@ -394,6 +395,7 @@ sub serve_path {
 	}
 
 	my $dir  = Plack::Util::encode_html( $env->{PATH_INFO} );
+	my $info = '';
 	my $page = 'empty';
 
 	if ( $req->param('bookreader') ) {
@@ -472,6 +474,7 @@ sub serve_path {
 			$files .= sprintf $dir_file, '', '<a name="ignored"><hr></a>', 'ignored', 'files', '<hr>';
 
 			@files = values %$files_by_name;
+ 			$info = qq{as book <a href="#ignored"> } . scalar @files . qq{ ignored</a>},
 
 		}
 
@@ -482,7 +485,8 @@ sub serve_path {
 
 		$page = sprintf $dir_page, 
 			$dir, # title
-			$submit, $dir, # h1
+			$dir, # h1
+			$submit . $info,
 			$files, 
 			$submit,
 			dump( [ @page_files ] ); # code
