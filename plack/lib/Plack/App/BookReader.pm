@@ -39,7 +39,7 @@ table { width:100%%; }
 .mtime { width:15em; }
   </style>
 </head><body>
-<h1>%s</h1>
+<h1>%s%s</h1>
 <hr />
 <table>
   <tr>
@@ -51,6 +51,7 @@ table { width:100%%; }
 %s
 </table>
 <hr />
+%s
 <code>%s</code>
 </body></html>
 PAGE
@@ -453,13 +454,38 @@ sub serve_path {
 
 	} else {
 
-		my $files = join "\n", map {
+		my $submit = '';
+		my $files = '';
+
+		if ( @page_files ) {
+
+			$submit = '<form><input type=submit name=bookreader value="Read" style="float:left"></form>&nbsp;';
+
+			my $files_by_name;
+			$files_by_name->{ $_->[1] } = $_ foreach @files;
+
+			$files = join "\n", map {
+				my $f = delete $files_by_name->{$_};
+				sprintf $dir_file, map Plack::Util::encode_html($_), @$f;
+			} @page_files;
+
+			$files .= sprintf $dir_file, '', '<a name="ignored"><hr></a>', 'ignored', 'files', '<hr>';
+
+			@files = values %$files_by_name;
+
+		}
+
+		$files .= join "\n", map {
 			my $f = $_;
 			sprintf $dir_file, map Plack::Util::encode_html($_), @$f;
 		} @files;
 
-		$page = sprintf $dir_page, $dir, $dir, $files, 
-			@page_files ? '<form><input type=submit name=bookreader value="Read"></form>' . dump( [ @page_files ] ) : '';
+		$page = sprintf $dir_page, 
+			$dir, # title
+			$submit, $dir, # h1
+			$files, 
+			$submit,
+			dump( [ @page_files ] ); # code
 
 	}
 
