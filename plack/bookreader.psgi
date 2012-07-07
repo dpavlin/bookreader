@@ -59,7 +59,7 @@ builder {
 	mount '/share' =>
 		Plack::App::BookReader->new({ root => "/mnt/share" })->to_app;
 
-	mount '/NSK' =>
-		Plack::App::Directory->new({ root => "NSK" })->to_app;
+	mount '/jstore' =>
+		Plack::App::BookReader->new({ root => "/mnt/jstore" })->to_app;
 
 }
